@@ -5112,6 +5112,28 @@ function computeScore(endingId) {
   s += ENDING_DEFS[endingId].bonus || 0;
   return Math.round(clamp(s, 1.0, 10.0) * 10);  /* v4 P1：百分制（原 10 分公式等比放大取整） */
 }
+function computeLbScore(endingId) {
+  let s = 5.0;
+  s += (S.merit - 18) * 0.09;
+  s += (S.ovr - 72) * 0.05;
+  s += clamp(S.scenes * 0.3, 0, 1.2);
+  s += clamp((S.sec.fame + S.sec.network) * 0.04, -0.8, 0.8);
+  s -= clamp(S.sec.controversy * 0.06, 0, 1.2);
+  s += ENDING_DEFS[endingId].bonus || 0;
+  return clamp(Math.round(500 + (s - 5.0) * 45), 0, 1000);  /* 第二季榜分：功业/阵容去封顶，500 中位，强局约 840、圣杯约 960+ */
+}
+function computeLbParts(endingId) {
+  const P = (raw) => Math.round(raw * 45);
+  return [
+    { label: '基础', pts: 500 },
+    { label: '功业', pts: P((S.merit - 18) * 0.09), hint: '功业 ' + S.merit },
+    { label: '阵容总评', pts: P((S.ovr - 72) * 0.05), hint: '总评 ' + S.ovr },
+    { label: '际遇场景', pts: P(clamp(S.scenes * 0.3, 0, 1.2)), hint: '场景 ' + S.scenes },
+    { label: '声望人脉', pts: P(clamp((S.sec.fame + S.sec.network) * 0.04, -0.8, 0.8)), hint: '声望 ' + S.sec.fame + ' · 人脉 ' + S.sec.network },
+    { label: '争议', pts: -P(clamp(S.sec.controversy * 0.06, 0, 1.2)), hint: '争议 ' + S.sec.controversy },
+    { label: '结局加成', pts: P(ENDING_DEFS[endingId].bonus || 0), hint: ENDING_DEFS[endingId].name }
+  ];
+}
 function postText() {
   const def = endingDefOf(S.endingId);
   const mt = loadMerit();
@@ -5978,7 +6000,7 @@ initCloudSync();
 /* ---------- 全服排行榜（与《乱世拼将》共用后端；请求必须走 cloud.request，裸 fetch 拿不到登录凭据） ---------- */
 const LB_API_BASE = 'https://app-6577eaef3c-d1gmtlqu9702c7de1-1252166086.ap-shanghai.app.tcloudbase.com/api';
 const LB_ENV_ID = 'app-6577eaef3c-d1gmtlqu9702c7de1';
-const LB_BOARDS = { best: 'fs_best', worst: 'fs_worst' };
+const LB_BOARDS = { best: 'fs_best_s2', worst: 'fs_worst' };
 function lbAvailable() { const cb = window.ColorboxAI; return !!(cb && cb.cloud && typeof cb.cloud.request === 'function' && typeof cb.cloud.auth === 'function'); }
 let __lbAuthed = false;
 async function lbAuth() {
@@ -6016,7 +6038,7 @@ async function lbSubmit(board, payload) {
 }
 function submitToBoards(endingId, endingName) {
   if (!lbAvailable()) return;
-  lbSubmit(LB_BOARDS.best, { score: S.score, ending: endingName }).catch(() => {});
+  lbSubmit(LB_BOARDS.best, { score: computeLbScore(endingId), ending: endingName }).catch(() => {});
   const cleared = endingId !== 'disease' && endingId !== 'diedWar';
   if (!cleared) {
     const dc = Math.min(19, Math.max(1, S.ch || 1));
@@ -6025,7 +6047,7 @@ function submitToBoards(endingId, endingName) {
 }
 function lbBackfillBest() {
   try {
-    if (localStorage.getItem('fengshen_lb_synced')) return;
+    if (true) return; /* 第二季：旧百分制成绩不回填新榜 */ if (localStorage.getItem('fengshen_lb_synced')) return;
     if (!lbAvailable()) return;
     const list = loadRecords();
     if (!list.length) return;
@@ -6055,11 +6077,11 @@ async function loadBoard(kind) {
     const data = await lbRequest('/leaderboard?board=' + encodeURIComponent(board));
     entries = (data && (data.entries || data.rows || data.list)) || [];
     total = (data && data.total) || entries.length;
-    const rule = kind === 'best' ? '全服最强：每人只记历史最高封神评分，同分先到者靠前。' : '全服最菜：比谁最先「上榜」——殁于第几章，同章再比谁分低。打通全程的不算。';
+    const rule = kind === 'best' ? '全服最强 · 第二季：每人只记历史最高封神值（0–1000，按功业、阵容、结局细分高下），同分先到者靠前。' : '全服最菜：比谁最先「上榜」——殁于第几章，同章再比谁分低。打通全程的不算。';
     st.textContent = rule + (total ? ` · 共 ${total} 人上榜` : '');
     const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
     const rowHTML = r => {
-      const sub = kind === 'best' ? `${lbEsc(r.ending || '')} · ${r.score} 分` : `殁于第 ${r.deathCh} 章 · ${lbEsc(r.ending || '')} · ${r.score} 分`;
+      const sub = kind === 'best' ? `${lbEsc(r.ending || '')} · 封神值 ${r.score}` : `殁于第 ${r.deathCh} 章 · ${lbEsc(r.ending || '')} · ${r.score} 分`;
       return `<div class="lb-row${r.isCurrent ? ' me' : ''}${r.rank <= 3 ? ' top' + r.rank : ''}"><span class="lb-rank">${medal(r.rank)}</span>${r.avatar ? `<img src="${lbEsc(r.avatar)}" alt="">` : '<img alt="">'}<span style="flex:1;min-width:0;"><span class="lb-name">${lbEsc(r.displayName || '虎扑用户')}${r.isCurrent ? '（我）' : ''}</span><br><span class="lb-sub">${sub}</span></span></div>`;
     };
     if (!entries.length) list.innerHTML = '<p class="hint">暂无数据，来打第一局开榜。</p>';
@@ -6069,7 +6091,7 @@ async function loadBoard(kind) {
     if (me && me.rank) {
       if (kind === 'best') {
         const prev = entries.find(r => r.rank === me.rank - 1);
-        mine.textContent = `我的最佳：全服第 ${me.rank} 名 · ${me.score} 分` + (me.rank === 1 ? ' · 暂居榜首 👑' : (prev ? ` · 距上一名差 ${prev.score - me.score} 分` : ''));
+        mine.textContent = `我的最佳：全服第 ${me.rank} 名 · 封神值 ${me.score}` + (me.rank === 1 ? ' · 暂居榜首 👑' : (prev ? ` · 距上一名差 ${prev.score - me.score}` : ''));
       } else {
         mine.textContent = `我最早上榜的一次：殁于第 ${me.deathCh} 章 · 全服第 ${me.rank} 名` + (me.rank === 1 ? ' · 暂居榜首 👑' : '');
       }
