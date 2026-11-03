@@ -262,6 +262,50 @@ h2::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; wi
 .avatar { background-image: none!important; background-color: #2b3d31;}
 .avatar.ph { display: flex; align-items: center; justify-content: center;}
 .avatar.ph i { font-style: normal; font-family: "Noto Serif SC", serif; font-size: 34px; color: #d9b45c;}
+
+/* ===== GPT 风美术全量落地（2026-11-03）：竖版宝塔背景 + 碑牌材质 + 人物提亮（样张 spec 4.6） ===== */
+/* 环境层：竖构图宝塔远景 fixed 铺底 */
+body::before { content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background: url("assets/bg-vertical-v1.webp") center 30% / cover no-repeat, #0B1D18; }
+/* 罩面：深绿压暗 + 边缘暗角，保证文字可读（远景退后） */
+body::after { background:
+  radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(4,12,9,.55) 100%),
+  linear-gradient(180deg, rgba(11,29,24,.60) 0%, rgba(11,29,24,.74) 46%, rgba(11,29,24,.88) 100%);
+  height: auto; z-index: -1; }
+/* 碑牌层：卡片材质统一 */
+.card { background: linear-gradient(180deg, rgba(30,64,52,.93), rgba(16,38,29,.95));
+  border: 1px solid rgba(200,164,93,.75); border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(11,29,24,.85), inset 0 0 0 5px rgba(200,164,93,.14), 0 12px 26px rgba(0,0,0,.5); }
+.person-card, .pick-card, .opt-btn { background: linear-gradient(180deg, rgba(30,64,52,.93), rgba(16,38,29,.95));
+  border: 1.5px solid rgba(200,164,93,.75); border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(11,29,24,.85), inset 0 0 0 5px rgba(200,164,93,.13), 0 10px 22px rgba(0,0,0,.45); }
+.person-card.tier-top { border-color: #F0CD7A;
+  box-shadow: 0 0 0 1px rgba(240,205,122,.8), 0 0 30px rgba(240,205,122,.35),
+  inset 0 0 0 1px rgba(11,29,24,.8), inset 0 0 0 5px rgba(240,205,122,.25), 0 12px 26px rgba(0,0,0,.5); }
+.attr-btn, .attr-cell { background: rgba(18,42,34,.92); border-color: rgba(200,164,93,.6); border-radius: 8px; }
+.mine-panel { background: rgba(18,42,34,.9); border-color: rgba(200,164,93,.55); border-radius: 8px; }
+.peak-box { background: rgba(18,42,34,.92); border-radius: 8px; }
+.modal-inner { background: linear-gradient(180deg, rgba(30,64,52,.97), rgba(16,38,29,.98));
+  border: 1px solid rgba(200,164,93,.75); border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(11,29,24,.85), inset 0 0 0 5px rgba(200,164,93,.14), 0 16px 40px rgba(0,0,0,.6); }
+.poster-share { background: rgba(18,42,34,.92); border: 1px solid rgba(200,164,93,.4); }
+.resbar .res { background: rgba(18,42,34,.92); border-color: rgba(200,164,93,.6); }
+.btn-ghost { background: rgba(18,42,34,.92); border-color: rgba(200,164,93,.6); border-radius: 8px; }
+/* 肖像层：光晕背板（径向金光自人物中心衰减）——只作用于 .avatar 容器与 img，不给大容器加 filter */
+.avatar { background-color: #122A22;
+  background-image: radial-gradient(ellipse 90% 78% at 50% 40%, rgba(246,214,130,.50) 0%, rgba(240,205,122,.22) 52%, rgba(240,205,122,.05) 78%, rgba(18,42,34,0) 100%) !important;
+  box-shadow: inset 0 0 0 1px rgba(200,164,93,.65), 0 6px 18px rgba(0,0,0,.5); }
+.avatar img { filter: brightness(1.22) contrast(1.07) saturate(1.10); }
+.avatar::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 62% 46% at 50% 30%, rgba(255,238,186,.34), rgba(255,238,186,0) 70%);
+  mix-blend-mode: screen; }
+/* 选中档（S 级传说头像）：再提一档 + 金色气场 */
+.person-card.tier-s .avatar { box-shadow: 0 0 0 3px #d9a514, 0 0 30px rgba(240,205,122,.55); }
+.person-card.tier-s .avatar img { filter: brightness(1.36) contrast(1.10) saturate(1.14); }
+.tier-s .avatar.med { box-shadow: 0 0 0 3px #d9a514, 0 0 30px rgba(240,205,122,.55); }
+.tier-s .avatar.med img { filter: brightness(1.36) contrast(1.10) saturate(1.14); }
+/* D 级保持黯淡（稀有度层级不被提亮抹平）：仅小幅提亮 */
+.person-card.tier-d .avatar img { filter: brightness(1.08) saturate(.75); }
 </style>
 <style>
 /* v5.19 */
