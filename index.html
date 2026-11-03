@@ -135,7 +135,11 @@ h3 { font-size: 15px; margin-bottom: 8px; }
 .ending-name { font-size: 30px; font-weight: 900; }
 .ending-quote { font-size: 15px; color: #b3a888; margin: 10px 0 4px; }
 .ending-stats { font-size: 14px; line-height: 2; color: #d8cba6; margin: 10px 0; }
-.ending-score { font-size: 21px; font-weight: 900; color: #E62B1E; margin-bottom: 18px; }
+.ending-report { font-size:13px; line-height:1.8; background:rgba(90,60,20,.07); border:1px solid rgba(90,60,20,.18); border-radius:8px; padding:8px 12px; }
+  .ending-report .rp-title { font-weight:900; margin-bottom:2px; }
+  .ending-report .rp-row { display:flex; justify-content:space-between; gap:8px; }
+  .ending-report .rp-hint { opacity:.65; font-size:12px; }
+  .ending-score { font-size: 21px; font-weight: 900; color: #E62B1E; margin-bottom: 18px; }
 
 /* 海报 */
 .poster { padding: 26px 20px; }
@@ -468,6 +472,7 @@ body::after { background:
       <div class="ending-stats" id="ending-stats"></div>
       <div class="ending-score" id="ending-score"></div>
       <div class="ending-extra" id="ending-extra" style="margin:10px 0;text-align:left;"></div>
+      <div class="ending-report hidden" id="ending-report" style="margin:10px 0;text-align:left;"></div>
       <button class="btn-primary btn-big" id="btn-to-poster">看《此人列传》→</button>
       <button class="btn-ghost" id="btn-shop-ending" style="width:100%;margin-top:10px;">🏯 功名商店</button>
       <button class="btn-ghost" id="btn-records-ending" style="width:100%;margin-top:10px;">🏆 看我的战绩榜</button>
@@ -507,6 +512,8 @@ body::after { background:
         <button class="btn-ghost lb-tab active" data-lb-tab="local" style="flex:1;">本地战绩</button>
         <button class="btn-ghost lb-tab" data-lb-tab="best" style="flex:1;">🏆 全服最强</button>
         <button class="btn-ghost lb-tab" data-lb-tab="worst" style="flex:1;">💀 全服最菜</button>
+        <button class="btn-ghost lb-tab" data-lb-tab="dbest" style="flex:1;">☀️ 今日最强</button>
+        <button class="btn-ghost lb-tab" data-lb-tab="dworst" style="flex:1;">🌑 今日最菜</button>
       </div>
       <div id="records-list"></div>
       <div id="board-panel" class="hidden">
@@ -4378,6 +4385,7 @@ function finishDraft() {
   S.title = computeTitle();
   S.troops = round10(200 + S.attrs.command * 20);
   S.health = 100;
+  S.dmg = { dp: 0, fx: 0, fate: 0, heal: 0 };  /* 死因统计 */
   /* v5.19：开局方略（普通局，有得有失）／每日词缀开局修正（每日局） */
   if (S.scheme === 'tuntian') { S.troops += 250; S.sec.fame = Math.max(-10, S.sec.fame - 8); }
   else if (S.scheme === 'yangwang') { S.sec.fame = Math.min(20, S.sec.fame + 12); S.health = 90; }
@@ -4441,7 +4449,7 @@ function applyEffects(eff) {
   if (!eff) return;
   for (const k of Object.keys(eff)) {
     const v = eff[k];
-    if (k === 'health') S.health = clamp(S.health + v, 0, 100);
+    if (k === 'health') { S.health = clamp(S.health + v, 0, 100); if (S.dmg) { if (v < 0) S.dmg.fx += -v; else S.dmg.heal += v; } }
     else if (k === 'troops') {
       let gain = 0;
       if (v === 'recruit') gain = round10(S.attrs.charisma * 10);
@@ -4611,21 +4619,23 @@ function enterChapter(n) {
   fabaoRateBonus = fabaoBonusFor(ch);  /* 阶段二：本章克制加成结算 */
   let note = '';
   if (n === 20) {
-    S.health = clamp(S.health + 8, 0, 100);
+    S.health = clamp(S.health + 8, 0, 100); if (S.dmg) S.dmg.heal += 8;
     note = '终局章：不扣命元，休养 +8';
   } else {
     let deduct = S.deBuPei * 2 + randInt(0, 3);
     if (S.dailyMod && S.dailyMod.halveDeduct) deduct = Math.ceil(deduct / 2);  /* v5.19 词缀·轻骑简从：命元消耗减半 */
     S.health = clamp(S.health - deduct, 0, 100);
+    if (S.dmg) S.dmg.dp += deduct;
     note = `章首扣命元 ${deduct}（德不配位 ${S.deBuPei} 项）`;
-    if (n === 4 || n === 8 || n === 12 || n === 16) { S.health = clamp(S.health + 8, 0, 100); note += `，休养 +8`; }
+    if (n === 4 || n === 8 || n === 12 || n === 16) { S.health = clamp(S.health + 8, 0, 100); if (S.dmg) S.dmg.heal += 8; note += `，休养 +8`; }
   }
   if (S.fate && S.fate.chapterHealth) {  /* v5.6 天命：章首命元修正（在存档点之前结算，恢复不重扣） */
     S.health = clamp(S.health + S.fate.chapterHealth, 0, 100);
+    if (S.dmg) { if (S.fate.chapterHealth < 0) S.dmg.fate += -S.fate.chapterHealth; else S.dmg.heal += S.fate.chapterHealth; }
     note += S.fate.chapterHealth > 0 ? `，天命「${S.fate.name}」+${S.fate.chapterHealth}` : `，天命「${S.fate.name}」${S.fate.chapterHealth}`;
   }
   if (S.dailyMod && n > 1) {  /* v5.19 每日词缀：章首修正（过章才结算，恢复读档不走 enterChapter 故不重扣） */
-    if (S.dailyMod.chapterHealth) { S.health = clamp(S.health + S.dailyMod.chapterHealth, 0, 100); note += `，词缀「${S.dailyMod.name}」命元${S.dailyMod.chapterHealth}`; }
+    if (S.dailyMod.chapterHealth) { S.health = clamp(S.health + S.dailyMod.chapterHealth, 0, 100); if (S.dmg) { if (S.dailyMod.chapterHealth < 0) S.dmg.fate += -S.dailyMod.chapterHealth; else S.dmg.heal += S.dailyMod.chapterHealth; } note += `，词缀「${S.dailyMod.name}」命元${S.dailyMod.chapterHealth}`; }
     if (S.dailyMod.chapterTroops) { S.troops = Math.max(0, S.troops + S.dailyMod.chapterTroops); note += `，词缀「${S.dailyMod.name}」军势+${S.dailyMod.chapterTroops}`; }
     if (S.dailyMod.id === 'yijiang') { S.merit += 1; note += `，词缀「一将难求」功业+1`; }
   }
@@ -5139,6 +5149,24 @@ function postText() {
   const mt = loadMerit();
   return `我拼了个${S.title}${mt.title ? `「${titleName(mt.title)}」` : ''}，${def.name}，天命${S.sec.fame}，封神评分${S.score}分${S.runSeed ? `，本局种子${seedCodeOf(S.runSeed)}（首页可挑战同款）` : ''}，列传在此。你来评评？`;  /* v5.19：称号+种子码 */
 }
+function endingReportHTML(endingId) {
+  const lb = computeLbScore(endingId);
+  const cleared = endingId !== 'disease' && endingId !== 'diedWar';
+  if (cleared) {
+    const rows = computeLbParts(endingId).map(p => `<div class="rp-row"><span>${p.label}${p.hint ? ` <span class="rp-hint">${lbEsc(p.hint)}</span>` : ''}</span><span>${p.pts > 0 ? '+' : ''}${p.pts}</span></div>`).join('');
+    return `<div class="rp-title">📊 封神值报告 · 本局 ${lb} / 1000（距满格 ${1000 - lb}）</div>${rows}<div class="rp-hint">封神值用于全服最强第二季排名：功业与阵容不再封顶，强一分是一分。</div>`;
+  }
+  const d = S.dmg || { dp: 0, fx: 0, fate: 0, heal: 0 };
+  if (endingId === 'disease') {
+    return `<div class="rp-title">🩺 死因报告 · 殁于第 ${S.ch} 章</div>` +
+      `<div class="rp-row"><span>德不配位章首扣命元</span><span>-${d.dp}</span></div>` +
+      `<div class="rp-row"><span>抉择与事件损伤</span><span>-${d.fx}</span></div>` +
+      `<div class="rp-row"><span>天命 / 词缀消耗</span><span>-${d.fate}</span></div>` +
+      `<div class="rp-row"><span>休养与回复</span><span>+${d.heal}</span></div>` +
+      `<div class="rp-hint">殁得越早在最菜榜排得越前——压不住的人少招一点，或者……招得更狠一点。</div>`;
+  }
+  return `<div class="rp-title">🩺 死因报告 · 殁于第 ${S.ch} 章</div><div class="rp-row"><span>亲征失败累计</span><span>${S.personalFail || 0} 次</span></div><div class="rp-hint">亲征太靠前，命悬一线；少亲自上阵可避开这个死法。</div>`;
+}
 function finishEnding(endingId) {
   clearSave();  /* v5.5：本局结束，存档作废 */
   S.endingId = endingId;
@@ -5156,6 +5184,7 @@ function finishEnding(endingId) {
   collectEnding(endingId);  /* v5.8：结局图鉴点亮 + 终局系成就判定（v5.19：成就功名先入账，结算展示才是准数） */
   settleMeritAndDaily(endingId);  /* v5.19：功名折算 + 每日挑战记账（各自只结一次） */
   $('ending-extra').innerHTML = endingExtraHTML();  /* v5.19 */
+  { const rp = $('ending-report'); rp.innerHTML = endingReportHTML(endingId); rp.classList.remove('hidden'); }  /* 双报告 */
   try { submitToBoards(endingId, def.name); } catch (e) {}  /* 全服双榜静默提交 */
   showScreen('ending');
 }
@@ -5533,6 +5562,7 @@ try { renderDailyCard(); } catch (e) {}  /* v5.19：首屏即渲染今日挑战�
 
 /* ---------- v5.15 更新公告 ---------- */
 const NOTICES = [
+  { v: 'v1.2', d: '11月4日', t: '极致追求', items: ['全服最强开启第二季：改用封神值（0–1000）排名，功业、阵容与结局的毫厘之差都能分出高下', '结算新增双报告：通关看封神值报告（每一分从哪来），阵亡看死因报告（命元都耗在哪了）', '每日挑战新增今日双榜：同一盘里比今日最高封神值、比今日最早殁落，午夜清零重开', '新增极端成就：毫发无损、璀璨封神、贪婪至死、三章之殁', '最菜榜规则不变，速死流照样能上榜'] },
   { v: 'v1.1', d: '11月3日', t: '全服双榜 · 事件重写', items: ['新增全服双榜：最强榜比历史最高封神评分；最菜榜比谁最先上封神榜（殁于第几章），战绩页查看', '14 个随机事件全部按封神世界重写，告别乱世串味', '界面换深青铜主题，与碑刻卡面统一'] },
   { v: 'v1.0', d: '11月3日', t: '封神拼将 · 开劫', items: [
     '双线开局：先选师承——阐教昆仑听道 / 截教碧游听讲，前四章双线分流、第六章起汇合伐纣，同一事件两面都玩得到',
@@ -5874,7 +5904,11 @@ const ACHIEVEMENTS = [
   { id:'fates6',    icon:'🌌', name:'天命见证者', desc:'见过 6 种不同的本局天命' },
   { id:'legendEnd', icon:'🏯', name:'爽局达成', desc:'达成任一隐藏爽结局（改写封神榜 / 封神次席 / 渭水钓翁）' },
   { id:'score85',   icon:'🔥', name:'封神滔天', desc:'单局封神评分达到 85' },
-  { id:'endings10', icon:'📜', name:'命运多舛', desc:'收集 10 种不同结局' }
+  { id:'endings10', icon:'📜', name:'命运多舛', desc:'收集 10 种不同结局' },
+  { id:'unscathed', icon:'✨', name:'毫发无损', desc:'以 90+ 命元通关' },
+  { id:'brilliant', icon:'💎', name:'璀璨封神', desc:'单局封神值达到 950' },
+  { id:'greed', icon:'👺', name:'贪婪至死', desc:'德不配位 5 项以上时殁落' },
+  { id:'earlydeath', icon:'⚰️', name:'三章之殁', desc:'在第 3 章或更早殁落' }
 ];
 function unlockAch(id) {
   const c = loadCollection();
@@ -5912,6 +5946,10 @@ function collectEnding(endingId) {
   if (S.score >= 85) unlockAch('score85');
   if (S.flags.includes('shenA') && S.flags.includes('shenB')) unlockAch('saveLuBu');  /* 阶段二：改挂申公豹暗线双落点 */
   if (endingId !== 'disease' && endingId !== 'diedWar' && S.health >= 80) unlockAch('healthy');
+  if (endingId !== 'disease' && endingId !== 'diedWar' && S.health >= 90) unlockAch('unscathed');
+  if (computeLbScore(endingId) >= 950) unlockAch('brilliant');
+  if (endingId === 'disease' && (S.deBuPei || 0) >= 5) unlockAch('greed');
+  if ((endingId === 'disease' || endingId === 'diedWar') && (S.ch || 99) <= 3) unlockAch('earlydeath');
 }
 
 /* v5.10 云端镜像：本地为主存，cloudSave 同步一份（写节流 ≥3.2s，启动拉取合并）；站外静默跳过 */
@@ -6001,6 +6039,11 @@ initCloudSync();
 const LB_API_BASE = 'https://app-6577eaef3c-d1gmtlqu9702c7de1-1252166086.ap-shanghai.app.tcloudbase.com/api';
 const LB_ENV_ID = 'app-6577eaef3c-d1gmtlqu9702c7de1';
 const LB_BOARDS = { best: 'fs_best_s2', worst: 'fs_worst' };
+function lbDailyBoard(kind) {
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
+  const ymd = '' + d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0');
+  return (kind === 'best' ? 'fs_dbest_' : 'fs_dworst_') + ymd;
+}
 function lbAvailable() { const cb = window.ColorboxAI; return !!(cb && cb.cloud && typeof cb.cloud.request === 'function' && typeof cb.cloud.auth === 'function'); }
 let __lbAuthed = false;
 async function lbAuth() {
@@ -6044,6 +6087,13 @@ function submitToBoards(endingId, endingName) {
     const dc = Math.min(19, Math.max(1, S.ch || 1));
     lbSubmit(LB_BOARDS.worst, { score: S.score, deathCh: dc, ending: endingName }).catch(() => {});
   }
+  if (S.mode === 'daily') {  /* 每日种子双榜：只收每日局 */
+    lbSubmit(lbDailyBoard('best'), { score: computeLbScore(endingId), ending: endingName }).catch(() => {});
+    if (!cleared) {
+      const dc = Math.min(19, Math.max(1, S.ch || 1));
+      lbSubmit(lbDailyBoard('worst'), { score: S.score, deathCh: dc, ending: endingName }).catch(() => {});
+    }
+  }
 }
 function lbBackfillBest() {
   try {
@@ -6067,7 +6117,9 @@ function setLbTab(tab) {
   if (!isLocal) loadBoard(tab);
 }
 async function loadBoard(kind) {
-  const board = LB_BOARDS[kind];
+  const isDaily = kind === 'dbest' || kind === 'dworst';
+  const baseKind = kind === 'dbest' ? 'best' : (kind === 'dworst' ? 'worst' : kind);
+  const board = isDaily ? lbDailyBoard(baseKind) : LB_BOARDS[kind];
   const st = $('board-status'), list = $('board-list'), mine = $('board-mine');
   if (!lbAvailable()) { st.textContent = '全服榜要在虎扑 App 内打开才能看（站外暂不可见）。'; list.innerHTML = ''; mine.textContent = ''; return; }
   if (kind === 'best') lbBackfillBest();
@@ -6077,11 +6129,13 @@ async function loadBoard(kind) {
     const data = await lbRequest('/leaderboard?board=' + encodeURIComponent(board));
     entries = (data && (data.entries || data.rows || data.list)) || [];
     total = (data && data.total) || entries.length;
-    const rule = kind === 'best' ? '全服最强 · 第二季：每人只记历史最高封神值（0–1000，按功业、阵容、结局细分高下），同分先到者靠前。' : '全服最菜：比谁最先「上榜」——殁于第几章，同章再比谁分低。打通全程的不算。';
+    const rule = kind === 'dbest' ? '今日最强：每日挑战同图同词缀，只记今天打出的最高封神值，午夜清零重开。'
+      : kind === 'dworst' ? '今日最菜：每日挑战里殁得最早，同章比低分，午夜清零重开。'
+      : baseKind === 'best' ? '全服最强 · 第二季：每人只记历史最高封神值（0–1000，按功业、阵容、结局细分高下），同分先到者靠前。' : '全服最菜：比谁殁得最早（第几章出局），同章再比谁分低。通关不算菜。';
     st.textContent = rule + (total ? ` · 共 ${total} 人上榜` : '');
     const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
     const rowHTML = r => {
-      const sub = kind === 'best' ? `${lbEsc(r.ending || '')} · 封神值 ${r.score}` : `殁于第 ${r.deathCh} 章 · ${lbEsc(r.ending || '')} · ${r.score} 分`;
+      const sub = baseKind === 'best' ? `${lbEsc(r.ending || '')} · 封神值 ${r.score}` : `殁于第 ${r.deathCh} 章 · ${lbEsc(r.ending || '')} · ${r.score} 分`;
       return `<div class="lb-row${r.isCurrent ? ' me' : ''}${r.rank <= 3 ? ' top' + r.rank : ''}"><span class="lb-rank">${medal(r.rank)}</span>${r.avatar ? `<img src="${lbEsc(r.avatar)}" alt="">` : '<img alt="">'}<span style="flex:1;min-width:0;"><span class="lb-name">${lbEsc(r.displayName || '虎扑用户')}${r.isCurrent ? '（我）' : ''}</span><br><span class="lb-sub">${sub}</span></span></div>`;
     };
     if (!entries.length) list.innerHTML = '<p class="hint">暂无数据，来打第一局开榜。</p>';
@@ -6089,14 +6143,14 @@ async function loadBoard(kind) {
     try { me = await lbRequest('/leaderboard/me?board=' + encodeURIComponent(board)); } catch (e) {}
     if (me && me.rank && entries.length && !entries.some(r => r.isCurrent)) list.innerHTML += rowHTML(Object.assign({}, me, { isCurrent: true }));
     if (me && me.rank) {
-      if (kind === 'best') {
+      if (baseKind === 'best') {
         const prev = entries.find(r => r.rank === me.rank - 1);
         mine.textContent = `我的最佳：全服第 ${me.rank} 名 · 封神值 ${me.score}` + (me.rank === 1 ? ' · 暂居榜首 👑' : (prev ? ` · 距上一名差 ${prev.score - me.score}` : ''));
       } else {
         mine.textContent = `我最早上榜的一次：殁于第 ${me.deathCh} 章 · 全服第 ${me.rank} 名` + (me.rank === 1 ? ' · 暂居榜首 👑' : '');
       }
     } else {
-      mine.textContent = kind === 'best' ? '我还没上榜，打完一局自动提交。' : '我还没上最菜榜——得先殁一次才行。';
+      mine.textContent = isDaily ? '我今天还没上榜——去打一局每日挑战。' : (baseKind === 'best' ? '我还没上榜，打完一局自动提交。' : '我还没上最菜榜——得先殁一次才行。');
     }
   } catch (e) { st.textContent = '榜单加载失败：' + e.message; }
 }
