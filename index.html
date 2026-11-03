@@ -326,6 +326,10 @@ body::after { background:
 .lb-rank { width:32px; text-align:center; font-weight:800; flex:none; }
 .lb-row.me { background:#4d3f1d; border-radius:8px; }
 .lb-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lb-tab { white-space:nowrap; font-size:14px; padding-left:2px; padding-right:2px; }
+.lb-row.top1 { background:#6b5518; border-radius:8px; }
+.lb-row.top2 { background:#3d4450; border-radius:8px; }
+.lb-row.top3 { background:#5d3f22; border-radius:8px; }
 .lb-sub { font-size:12px; color:#9a8f74; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
@@ -6046,21 +6050,33 @@ async function loadBoard(kind) {
   if (!lbAvailable()) { st.textContent = '全服榜要在虎扑 App 内打开才能看（站外暂不可见）。'; list.innerHTML = ''; mine.textContent = ''; return; }
   if (kind === 'best') lbBackfillBest();
   st.textContent = '加载中…'; list.innerHTML = ''; mine.textContent = '';
+  let entries = [], total = 0, me = null;
   try {
     const data = await lbRequest('/leaderboard?board=' + encodeURIComponent(board));
-    const rows = (data && (data.rows || data.list)) || [];
-    st.textContent = kind === 'best' ? '全服最强：每人只记历史最高封神评分，同分先到者靠前。' : '全服最菜：比谁最先「上榜」——殁于第几章，同章再比谁分低。打通全程的不算。';
-    if (!rows.length) { list.innerHTML = '<p class="hint">暂无数据，来打第一局开榜。</p>'; }
-    else list.innerHTML = rows.map(r => {
+    entries = (data && (data.entries || data.rows || data.list)) || [];
+    total = (data && data.total) || entries.length;
+    const rule = kind === 'best' ? '全服最强：每人只记历史最高封神评分，同分先到者靠前。' : '全服最菜：比谁最先「上榜」——殁于第几章，同章再比谁分低。打通全程的不算。';
+    st.textContent = rule + (total ? ` · 共 ${total} 人上榜` : '');
+    const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
+    const rowHTML = r => {
       const sub = kind === 'best' ? `${lbEsc(r.ending || '')} · ${r.score} 分` : `殁于第 ${r.deathCh} 章 · ${lbEsc(r.ending || '')} · ${r.score} 分`;
-      return `<div class="lb-row${r.isCurrent ? ' me' : ''}"><span class="lb-rank">${r.rank}</span>${r.avatar ? `<img src="${lbEsc(r.avatar)}" alt="">` : '<img alt="">'}<span style="flex:1;min-width:0;"><span class="lb-name">${lbEsc(r.displayName || '虎扑用户')}${r.isCurrent ? '（我）' : ''}</span><br><span class="lb-sub">${sub}</span></span></div>`;
-    }).join('');
-  } catch (e) { st.textContent = '榜单加载失败：' + e.message; return; }
-  try {
-    const me = await lbRequest('/leaderboard/me?board=' + encodeURIComponent(board));
-    if (me && me.rank) mine.textContent = kind === 'best' ? `我的最佳：全服第 ${me.rank} 名 · ${me.score} 分` : `我最早上榜的一次：殁于第 ${me.deathCh} 章 · 全服第 ${me.rank} 名`;
-    else mine.textContent = kind === 'best' ? '我还没上榜，打完一局自动提交。' : '我还没上最菜榜——得先殁一次才行。';
-  } catch (e) {}
+      return `<div class="lb-row${r.isCurrent ? ' me' : ''}${r.rank <= 3 ? ' top' + r.rank : ''}"><span class="lb-rank">${medal(r.rank)}</span>${r.avatar ? `<img src="${lbEsc(r.avatar)}" alt="">` : '<img alt="">'}<span style="flex:1;min-width:0;"><span class="lb-name">${lbEsc(r.displayName || '虎扑用户')}${r.isCurrent ? '（我）' : ''}</span><br><span class="lb-sub">${sub}</span></span></div>`;
+    };
+    if (!entries.length) list.innerHTML = '<p class="hint">暂无数据，来打第一局开榜。</p>';
+    else list.innerHTML = entries.map(rowHTML).join('');
+    try { me = await lbRequest('/leaderboard/me?board=' + encodeURIComponent(board)); } catch (e) {}
+    if (me && me.rank && entries.length && !entries.some(r => r.isCurrent)) list.innerHTML += rowHTML(Object.assign({}, me, { isCurrent: true }));
+    if (me && me.rank) {
+      if (kind === 'best') {
+        const prev = entries.find(r => r.rank === me.rank - 1);
+        mine.textContent = `我的最佳：全服第 ${me.rank} 名 · ${me.score} 分` + (me.rank === 1 ? ' · 暂居榜首 👑' : (prev ? ` · 距上一名差 ${prev.score - me.score} 分` : ''));
+      } else {
+        mine.textContent = `我最早上榜的一次：殁于第 ${me.deathCh} 章 · 全服第 ${me.rank} 名` + (me.rank === 1 ? ' · 暂居榜首 👑' : '');
+      }
+    } else {
+      mine.textContent = kind === 'best' ? '我还没上榜，打完一局自动提交。' : '我还没上最菜榜——得先殁一次才行。';
+    }
+  } catch (e) { st.textContent = '榜单加载失败：' + e.message; }
 }
 document.querySelectorAll('.lb-tab').forEach(b => { b.onclick = () => setLbTab(b.dataset.lbTab); });
 
