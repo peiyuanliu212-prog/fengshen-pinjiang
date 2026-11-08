@@ -107,6 +107,10 @@ h3 { font-size: 15px; margin-bottom: 8px; }
 .bond-badges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
 .bond-badge { font-size: 11px; font-weight: 700; color: #ffd98a; background: rgba(201,162,39,.12); border: 1px solid rgba(201,162,39,.45); border-radius: 8px; padding: 1px 7px; }
 .bond-badge.on { color: #8fd6a4; border-color: rgba(110,200,140,.5); background: rgba(46,125,79,.18); }
+.bond-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.bond-chip { font-size: 14px; font-weight: 700; line-height: 1.55; color: #ffd98a; background: rgba(201,162,39,.16); border: 1.5px solid #c9a227; border-radius: 10px; padding: 4px 11px; }
+.bond-chip.on { color: #fff; background: #2e7d4f; border-color: #8fd6a4; }
+.bond-chip.fx { color: #e8cf9a; background: rgba(255,217,138,.08); border: 1.5px dashed rgba(201,162,39,.65); }
 .bond-bar { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .bond-card { border: 1px solid rgba(201,162,39,.4); background: rgba(236,224,194,.05); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 
@@ -428,6 +432,7 @@ body::after { background:
         <div class="draft-count" id="draft-count">已夺 0 / 12</div>
       </div>
       <div id="draft-mine" class="mine-panel"></div>
+      <div id="draft-bonds" class="bond-strip" style="display:none;"></div>
       <div id="draft-stage"></div>
       <div class="draft-foot">
         <button class="btn-ghost" id="btn-swap">🔀 换一批（剩 3 次）</button>
@@ -438,7 +443,6 @@ body::after { background:
       <div class="copied hidden" id="ad-toast">定向招募已就绪</div>
       <div id="bond-bar" class="bond-bar"></div>
       <div id="draft-locked" class="locked-line"></div>
-      <div id="draft-bonds" class="locked-line" style="margin-top:4px;"></div>
     </div>
   </section>
 
@@ -4591,23 +4595,23 @@ function bondBadgeHTML(name) {
 function renderDraftBonds() {
   const el = $('draft-bonds');
   if (!el) return;
-  const parts = [];
-  const on = BONDS.filter(B => S.bonds && S.bonds[B.id]);
-  if (on.length) parts.push('💞 已触发：' + on.map(B => `《${B.name}》✓`).join(' '));
-  const prog = [];
+  const chips = [];
+  for (const B of BONDS) {
+    if (S.bonds && S.bonds[B.id]) chips.push(`<span class="bond-chip on">💞 《${B.name}》✓ 已触发</span>`);
+  }
   for (const B of BONDS) {
     if (S.bonds && S.bonds[B.id]) continue;
     const locked = bondLockedMembers(B);
     if (!locked.length) continue;
     const missing = bondMembersOf(B).filter(n => bondSlotOf(n) === null);
-    prog.push(`《${B.name}》${locked.length}/${bondNeedOf(B)}（待：${missing.join('、')}）`);
+    chips.push(`<span class="bond-chip">💞 凑羁绊中：《${B.name}》${locked.length}/${bondNeedOf(B)}（待：${missing.join('、')}）</span>`);
   }
-  if (prog.length) parts.push('💞 凑羁绊中：' + prog.join(' · '));
   const tempB = BONDS.find(B => B.type === 'temp');
-  if (S.bondTempNext && tempB) parts.push(`🌟 《${tempB.name}》余势：下一场判定 +${tempB.rider || 3}`);
+  if (S.bondTempNext && tempB) chips.push(`<span class="bond-chip fx">🌟 《${tempB.name}》余势：下一场判定 +${tempB.rider || 3}</span>`);
   const mechB = BONDS.find(B => B.type === 'mech');
-  if ((S.bondFreeRewind || 0) > 0 && mechB) parts.push(`💞 《${mechB.name}》免费改命 ×${S.bondFreeRewind} 待用（章节判定失败后可用）`);
-  el.innerHTML = parts.join('<br>');
+  if ((S.bondFreeRewind || 0) > 0 && mechB) chips.push(`<span class="bond-chip fx">💞 《${mechB.name}》免费改命 ×${S.bondFreeRewind} 待用（章节判定失败后可用）</span>`);
+  el.innerHTML = chips.join('');
+  el.style.display = chips.length ? '' : 'none';
 }
 function bondUnveilLine() {
   const on = BONDS.filter(B => S.bonds && S.bonds[B.id]);
