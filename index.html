@@ -6320,18 +6320,18 @@ const NOTICES = [
     '功名商店只卖收藏与开局方略，不卖战力；战报种子可与朋友打同一盘，存档码换设备不丢档'
   ] },
 ];const NOTICE_KEY = 'fengshen_notice_seen';
-/* 公告内导流按钮（联赛导流批）：跳转走官方 ColorboxAI.navigate.to（点击触发、查 code、失败 toast）；站外无 SDK 时降级 window.open */
+/* 公告内导流按钮（联赛导流批）：跳转走官方 ColorboxAI.navigate.to（点击触发、查 code、失败 toast）；站外无 SDK 时仅 toast 提示（平台检测禁新窗口跳转，2026-11-23 改） */
 function noticeBtnHtml(n) {
   return (n.btn && n.url) ? `<div style="margin-top:6px;"><button class="notice-link-btn" data-nurl="${n.url}">${n.btn}</button></div>` : '';
 }
 function openNoticeLink(url) {
   try {
     if (window.ColorboxAI && window.ColorboxAI.navigate && typeof window.ColorboxAI.navigate.to === 'function') {
-      window.ColorboxAI.navigate.to({ url }).then(r => { if (r && r.code !== 200) showGameToast('打开失败，请稍后再试'); }).catch(() => { try { window.open(url, '_blank'); } catch (e) {} });
+      window.ColorboxAI.navigate.to({ url }).then(r => { if (r && r.code !== 200) showGameToast('打开失败，请稍后再试'); }).catch(() => { showGameToast('打开失败，请稍后再试'); });
       return;
     }
   } catch (e) {}
-  try { window.open(url, '_blank'); } catch (e) {}
+  showGameToast('请在虎扑 App 内打开本页后再试');
 }
 function bindNoticeBtns(root) {
   root.querySelectorAll('.notice-link-btn').forEach(b => { b.onclick = () => openNoticeLink(b.getAttribute('data-nurl')); });
